@@ -269,13 +269,10 @@ async function Smoke(id: number) {
       <ScrollView contentContainerStyle={styles.container}>
         <ThemedText type="title" >BeeSmart Dashboard</ThemedText>
 
-        {/* <Button
-            onPress={openAddHive}>
-          + Add Hive
-        </Button> */}
+ 
 
 
-        <Button title="+ Add Hive" onPress={openAddHive} color="#333333" />
+        {/* <Button title="+ Add Hive" onPress={openAddHive} color="#333333" /> */}
         {hives.map((hive) => (
           <ThemedView key={hive.id} style={styles.card}>
             {/* <ThemedText type="subtitle">{hive.name}</ThemedText> */}
