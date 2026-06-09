@@ -12,28 +12,8 @@ function connect(){
 }
 
 function disconnect(){
-  
+
 }
-
-useEffect(() => {
-  connect();
-
-  const sub = AppState.addEventListener(
-    'change',
-    (state) => {
-      if (state === 'active') {
-        connect();
-      } else {
-        disconnect();
-      }
-    }
-  );
-
-  return () => {
-    sub.remove();
-    disconnect();
-  };
-}, []);
 
 export const unstable_settings = {
   initialRouteName: 'login',
@@ -45,6 +25,23 @@ export default function RootLayout() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   // const segments = useSegments();
   const router = useRouter();
+
+  useEffect(() => {
+    connect();
+
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        connect();
+      } else {
+        disconnect();
+      }
+    });
+
+    return () => {
+      sub.remove();
+      disconnect();
+    };
+  }, []);
 
   // useEffect(() => {
   //   // const inAuthGroup = segments[0] === '(auth)';
@@ -64,6 +61,7 @@ export default function RootLayout() {
       <Stack>
       {/* <Stack.Screen name="(auth)" /> */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="add-hive" options={{ title: 'Add Hive' }} />
         {/* <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} /> */}
       </Stack>
       {/* <StatusBar style="auto" /> */}

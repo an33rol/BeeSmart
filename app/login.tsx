@@ -1,4 +1,4 @@
-import { View, TextInput, Button } from 'react-native';
+import { View, TextInput, Button, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Redirect } from 'expo-router';
@@ -20,37 +20,39 @@ export default function LoginScreen() {
   async function handleLogin() {
     // TODO: call backend auth API
     let admin = users[0];
-    if (admin.name == email && admin.password == password && url != "") {
-      
-      await AsyncStorage.setItem('ha_url', url);
-  
-      const response = await fetch(`${url}/api/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-  
-      if (!response.ok) {
-        throw new Error('Cannot reach Home Assistant');
+    const cleanUrl = url.trim().replace(/\/+$/, ''); // makni razmake i trailing slash
+
+    if (admin.name == email && admin.password == password && cleanUrl != "") {
+      try {
+        const response = await fetch(`${cleanUrl}/api/`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Cannot reach Home Assistant');
+        }
+
+        await AsyncStorage.setItem('ha_url', cleanUrl);
+
+        router.replace('/(tabs)');
+      } catch (e) {
+        console.error('Login failed:', e);
+        const msg =
+          'Ne mogu se spojiti na Home Assistant.\nProvjeri URL (npr. http://homeassistant.local:8123, bez / na kraju) i CORS postavke.';
+        // Alert.alert ne radi na webu, pa fallback na window.alert
+        if (typeof window !== 'undefined' && window.alert) {
+          window.alert(msg);
+        } else {
+          Alert.alert('Greška', msg);
+        }
       }
-  
-      const data = await response.json();
-  
-      console.log(data);
-
-      router.replace('/(tabs)');
-      
+    } else {
+      setPassword('');
+      setEmail('');
     }
-
-    else {
-      setPassword("")
-      setEmail("")
-    }
-
-    console.log(email, password);
-
-
   }
 
   return (

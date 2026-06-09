@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { router } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ThemedText } from '@/components/themed-text';
@@ -17,6 +17,17 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+type Hive = {
+  id: string;
+  name?: string;
+  temperature: number | null;
+  humidity: number | null;
+  weight: number | null;
+  led: boolean | null;
+  open: boolean | null;
+  smoke: boolean | null;
+};
 
 const hiveIds = ["k1", "k2"];
 const initialHives = [
@@ -43,38 +54,46 @@ const initialHives = [
 ];
 
 
-function getTempColor(temp: number) {
+function getTempColor(temp: number | null) {
+  if (temp == null) return 'gray';
   if (temp >= 35) return 'red';
   if (temp >= 30) return 'orange';
   return 'green';
 }
 
-function getHumidityColor(h: number) {
+function getHumidityColor(h: number | null) {
+  if (h == null) return 'gray';
   if (h >= 75 || h <= 40) return 'orange'; // too dry or too humid
   return 'green';
 }
 
-function getWeightColor(w: number) {
+function getWeightColor(w: number | null) {
+  if (w == null) return 'gray';
   if (w < 20) return 'red';     // abnormal low
   if (w < 35) return 'orange';  // medium
   return 'green';               // healthy hive weight
+}
+
+// "—" dok senzor još nema podataka (nova košnica)
+function fmt(value: number | null, unit: string) {
+  return value == null || isNaN(value) ? '—' : `${value.toFixed(1)} ${unit}`;
 }
 
 function getLedColor(led: boolean) {
   return led ? 'green' : 'gray';
 }
 
-function getDoorColor(open: boolean) {
+function getDoorColor(open: boolean | null) {
   return open ? 'orange' : 'green';
 }
 
-function getSmokeColor(smoke: boolean) {
+function getSmokeColor(smoke: boolean | null) {
   return smoke ? 'green' : 'gray';
 }
 
 
-function parseHives(states: any[]) {
-  const hives: Record<string, any> = {};
+function parseHives(states: any[]): Hive[] {
+  const hives: Record<string, Hive> = {};
 
   states.forEach((item) => {
     const idMatch = item.entity_id.match(/k\d+/);
@@ -154,8 +173,8 @@ function parseHives(states: any[]) {
 export default function HomeScreen() {
 
   const [url, setUrl] = useState('')
-  const [hives, setHives] = useState([]);
-  const [selectedHive, setSelectedHive] = useState<number | null>(null);
+  const [hives, setHives] = useState<Hive[]>([]);
+  const [selectedHive, setSelectedHive] = useState<string | null>(null);
 
 
 // async function LEDAction(id: number) {
@@ -178,7 +197,7 @@ export default function HomeScreen() {
 //   console.log('LED toggled:', data);
 // }
 
-async function Smoke(id: number) {
+async function Smoke(id: string) {
   const entity_id = `switch.${id}_zadimljivac`;
 
   const response = await fetch(`${url}/api/services/switch/toggle`, {
@@ -202,7 +221,7 @@ async function Smoke(id: number) {
 
   }
 
-  function openAnalytics(id: number) {
+  function openAnalytics(id: string) {
     closeMenu();
 
     // navigate to analytics screen
@@ -211,7 +230,7 @@ async function Smoke(id: number) {
     console.log('Analytics for hive', id);
   }
 
-  function openMenu(hiveId: number) {
+  function openMenu(hiveId: string) {
     setSelectedHive(hiveId);
   }
 
@@ -239,10 +258,19 @@ async function Smoke(id: number) {
       },
     });
 
-    
+
     let  states = await response.json();
-    setHives(parseHives(states))
-    console.log(hives)
+
+    // imena košnica spremljena lokalno (Add Hive ekran)
+    const raw = await AsyncStorage.getItem('hive_names');
+    const names: Record<string, string> = raw ? JSON.parse(raw) : {};
+
+    const parsed = parseHives(states).map((hive: any) => ({
+      ...hive,
+      name: names[hive.id] ?? `Hive ${hive.id}`,
+    }));
+
+    setHives(parsed);
     // for (let id in hiveIds){
     //   let elem = hiveIds[id]
       
@@ -254,10 +282,14 @@ async function Smoke(id: number) {
 
     return states;
   }
-  useEffect(() => {
-    loadSettings();
-    loadData();
-  }, []);
+  // osvježi podatke svaki put kad se ekran fokusira
+  // (npr. povratak s Add Hive ekrana)
+  useFocusEffect(
+    useCallback(() => {
+      loadSettings();
+      loadData();
+    }, [])
+  );
 
   async function loadData() {
     const states = await getStates();
@@ -272,12 +304,11 @@ async function Smoke(id: number) {
  
 
 
-        {/* <Button title="+ Add Hive" onPress={openAddHive} color="#333333" /> */}
+        <Button title="+ Add Hive" onPress={openAddHive} color="#333333" />
         {hives.map((hive) => (
           <ThemedView key={hive.id} style={styles.card}>
-            {/* <ThemedText type="subtitle">{hive.name}</ThemedText> */}
             <View style={styles.cardHeader}>
-              <ThemedText type="subtitle">Hive {hive.id}</ThemedText>
+              <ThemedText type="subtitle">{hive.name}</ThemedText>
 
               <TouchableOpacity
                 style={styles.kebabButton}
@@ -289,20 +320,20 @@ async function Smoke(id: number) {
 
             <ThemedView style={styles.row}>
               <ThemedText>Temperature</ThemedText>
-              <ThemedText style={{ color: getTempColor(hive.temperature) }}>{hive.temperature.toFixed(1)} °C</ThemedText>
+              <ThemedText style={{ color: getTempColor(hive.temperature) }}>{fmt(hive.temperature, '°C')}</ThemedText>
             </ThemedView>
 
             <ThemedView style={styles.row}>
               <ThemedText>Humidity</ThemedText>
               <ThemedText style={{ color: getHumidityColor(hive.humidity) }}>
-                {hive.humidity.toFixed(1)} %
+                {fmt(hive.humidity, '%')}
               </ThemedText>
             </ThemedView>
 
             <ThemedView style={styles.row}>
               <ThemedText>Weight</ThemedText>
               <ThemedText style={{ color: getWeightColor(hive.weight) }}>
-                {hive.weight.toFixed(1)} kg
+                {fmt(hive.weight, 'kg')}
               </ThemedText>
             </ThemedView>
 {/* 
