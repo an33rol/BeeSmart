@@ -1,0 +1,85 @@
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+http:
+  cors_allowed_origins:
+    - http://localhost:8081
+
+mqtt:
+
+  sensor:
+    - name: "K1 Temperatura"
+      state_topic: "beesmart/koshnica1/temperatura"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      icon: mdi:thermometer
+
+    - name: "K1 Vlaga"
+      state_topic: "beesmart/koshnica1/vlaga"
+      unit_of_measurement: "%"
+      device_class: humidity
+      icon: mdi:water-percent
+
+    - name: "K1 Težina"
+      state_topic: "beesmart/koshnica1/tezina"
+      unit_of_measurement: "kg"
+      icon: mdi:scale
+
+
+    - name: "K2 Temperatura"
+      state_topic: "beesmart/koshnica2/temperatura"
+      unit_of_measurement: "°C"
+      device_class: temperature
+      icon: mdi:thermometer
+
+    - name: "K2 Vlaga"
+      state_topic: "beesmart/koshnica2/vlaga"
+      unit_of_measurement: "%"
+      device_class: humidity
+      icon: mdi:water-percent
+
+    - name: "K2 Težina"
+      state_topic: "beesmart/koshnica2/tezina"
+      unit_of_measurement: "kg"
+      icon: mdi:scale
+
+
+  binary_sensor:
+    - name: "K1 Poklopac"
+      state_topic: "beesmart/koshnica1/poklopac"
+      payload_on: "OPEN"
+      payload_off: "CLOSED"
+      device_class: door
+      icon: mdi:beehive-outline
+
+    - name: "K2 Poklopac"
+      state_topic: "beesmart/koshnica2/poklopac"
+      payload_on: "OPEN"
+      payload_off: "CLOSED"
+      device_class: door
+      icon: mdi:beehive-outline
+
+
+  switch:
+    - name: "K1 Zadimljivač"
+      command_topic: "beesmart/koshnica1/humidifier/set"
+      state_topic: "beesmart/koshnica1/humidifier/state"
+      payload_on: "ON"
+      payload_off: "OFF"
+      icon: mdi:smoke
+
+    - name: "K2 Zadimljivač"
+      command_topic: "beesmart/koshnica2/humidifier/set"
+      state_topic: "beesmart/koshnica2/humidifier/state"
+      payload_on: "ON"
+      payload_off: "OFF"
+      icon: mdi:smoke
