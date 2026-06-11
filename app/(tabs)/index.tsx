@@ -1,22 +1,20 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { router, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-// import { Button } from '@react-navigation/elements';
-import { Button } from 'react-native';
 import { token } from '@/constants/creds';
 import {
-  Alert,
-  Modal,
+  Button, Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
+
+const wsRef = useRef<WebSocket | null>(null);
 
 type Hive = {
   id: string;
@@ -52,6 +50,7 @@ const initialHives = [
     smoke: false
   },
 ];
+
 
 
 function getTempColor(temp: number | null) {
@@ -142,30 +141,6 @@ function parseHives(states: any[]): Hive[] {
 }
 
 
-// function removeHive(id: number) {
-//   console.log("remove hive")
-//   Alert.alert( // Alert doesnt work on web
-//     'Remove Beehive',
-//     'Are you sure you want to remove this beehive?',
-//     [
-//       {
-//         text: 'Cancel',
-//         style: 'cancel',
-//       },
-//       {
-//         text: 'Remove',
-//         style: 'destructive',
-//         onPress: () => {
-//           setHives((prev) => prev.filter((hive) => hive.id !== id));
-
-//           // DELETE request to backend
-//           // DELETE /hives/:id
-//         },
-//       },
-//     ]
-//   );
-// }
-
 
 
 
@@ -176,26 +151,138 @@ export default function HomeScreen() {
   const [hives, setHives] = useState<Hive[]>([]);
   const [selectedHive, setSelectedHive] = useState<string | null>(null);
 
+  useEffect(() => {
+    async function init() {
+      const savedUrl = await AsyncStorage.getItem('ha_url');
+  
+      if (!savedUrl) return;
+  
+      setUrl(savedUrl);
+  
+      await loadData();
+  
+      connectWebSocket(savedUrl);
+    }
+  
+    init();
+  
+    return () => {
+      wsRef.current?.close();
+    };
+  }, []);
 
-// async function LEDAction(id: number) {
-//   // POST req to Home Assistant
+function connectWebSocket(haUrl: string) {
+  if (!haUrl) return;
 
-//   const entity_id = `switch.${id}_led`; // adjust to your HA naming
+  const wsUrl = haUrl
+    .replace(/^http/, 'ws')
+    .replace(/\/$/, '') + '/api/websocket';
 
-//   const response = await fetch(`${url}/api/services/switch/toggle`, {
-//     method: 'POST',
-//     headers: {
-//       Authorization: `Bearer ${token}`,
-//       'Content-Type': 'application/json',
-//     },
-//     body: JSON.stringify({
-//       entity_id,
-//     }),
-//   });
+  const ws = new WebSocket(wsUrl);
 
-//   const data = await response.json();
-//   console.log('LED toggled:', data);
-// }
+  ws.onopen = () => {
+    console.log('WS connected');
+  };
+
+  ws.onmessage = async (event) => {
+    const msg = JSON.parse(event.data);
+
+    console.log('WS:', msg);
+
+    switch (msg.type) {
+      case 'auth_required':
+        ws.send(
+          JSON.stringify({
+            type: 'auth',
+            access_token: token,
+          })
+        );
+        break;
+
+      case 'auth_ok':
+        console.log('WS authenticated');
+
+        ws.send(
+          JSON.stringify({
+            id: 1,
+            type: 'subscribe_events',
+            event_type: 'state_changed',
+          })
+        );
+
+        await loadData();
+        break;
+
+      case 'event':
+        handleStateChanged(msg.event);
+        break;
+    }
+  };
+
+  function handleStateChanged(event: any) {
+    const entity = event.data?.new_state;
+  
+    if (!entity) return;
+  
+    setHives((prev) => {
+      const next = [...prev];
+  
+      const hiveIdMatch = entity.entity_id.match(/k\d+/);
+  
+      if (!hiveIdMatch) return prev;
+  
+      const hiveId = hiveIdMatch[0];
+  
+      const index = next.findIndex((h) => h.id === hiveId);
+  
+      if (index === -1) return prev;
+  
+      const hive = { ...next[index] };
+  
+      if (entity.entity_id.includes('temperatura')) {
+        hive.temperature = parseFloat(entity.state);
+      }
+  
+      if (entity.entity_id.includes('vlaga')) {
+        hive.humidity = parseFloat(entity.state);
+      }
+  
+      if (entity.entity_id.includes('tezina')) {
+        hive.weight = parseFloat(entity.state);
+      }
+  
+      if (entity.entity_id.includes('poklopac')) {
+        hive.open = entity.state === 'on';
+      }
+  
+      if (entity.entity_id.includes('zadimljivac')) {
+        hive.smoke = entity.state === 'on';
+      }
+  
+      if (entity.entity_id.includes('led')) {
+        hive.led = entity.state === 'on';
+      }
+  
+      next[index] = hive;
+  
+      return next;
+    });
+  }
+
+  ws.onerror = (err) => {
+    console.log('WS error', err);
+  };
+
+  ws.onclose = () => {
+    console.log('WS closed');
+
+    setTimeout(() => {
+      connectWebSocket(haUrl);
+    }, 5000);
+  };
+
+  wsRef.current = ws;
+}
 
 async function Smoke(id: string) {
   const entity_id = `switch.${id}_zadimljivac`;
@@ -271,14 +358,6 @@ async function Smoke(id: string) {
     }));
 
     setHives(parsed);
-    // for (let id in hiveIds){
-    //   let elem = hiveIds[id]
-      
-    //   let sensors = states.filter((item) =>
-    //     item.entity_id.includes(elem)
-    //   );
-    //   console.log(elem , sensors)
-    // }
 
     return states;
   }
@@ -388,21 +467,6 @@ async function Smoke(id: string) {
               <ThemedText>View Analytics</ThemedText>
             </TouchableOpacity>
 
-            {/* <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                console.log("selected", selectedHive)
-
-                if (selectedHive !== null) {
-                  // removeHive(selectedHive);
-                  closeMenu();
-                }
-              }}
-            >
-              <ThemedText style={styles.deleteText}>
-                Remove Beehive
-              </ThemedText>
-            </TouchableOpacity> */}
           </View>
         </Pressable>
       </Modal>

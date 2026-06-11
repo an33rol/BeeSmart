@@ -1,11 +1,8 @@
-import { View, TextInput, Button, Alert } from 'react-native';
+import { token, users } from '@/constants/creds';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Redirect } from 'expo-router';
-import { users } from '@/constants/creds';
-import { Colors } from '@/constants/theme';
-import { token } from '@/constants/creds';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert, Button, TextInput, View } from 'react-native';
 
 
 
@@ -24,6 +21,7 @@ export default function LoginScreen() {
 
     if (admin.name == email && admin.password == password && cleanUrl != "") {
       try {
+        console.log("clean",cleanUrl)
         const response = await fetch(`${cleanUrl}/api/`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -32,7 +30,7 @@ export default function LoginScreen() {
         });
 
         if (!response.ok) {
-          throw new Error('Cannot reach Home Assistant');
+           throw new Error('Cannot reach Home Assistant');
         }
 
         await AsyncStorage.setItem('ha_url', cleanUrl);
